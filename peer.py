@@ -3,8 +3,9 @@ from modules import protocol
 from modules.config import ServerAddress
 from modules.errors import ValidationError
 from modules.logger import Logger
+from modules.buffer import PeerBuffer
 import modules.communication as comm
-from gen.proto.communication_pb2 import HandshakeStart, HandshakeAck
+from gen.proto.communication_pb2 import HandshakeStart, HandshakeAck, Message
 from modules.args import parse_args
 import socket
 import sys
@@ -15,11 +16,14 @@ log_dir = "./log"
 logger = Logger("peer", logging.DEBUG).get_logger()
 
 # General behavior variables
-RETRY_ID = True
-MAX_HANDSHAKE_RETRIES = 3
+EXIT = False
+PEER_ID = None
 
 # Initialize routing table
 TABLE = {}
+
+# Initialize per-peer buffer of messages
+buffer = PeerBuffer()
 
 
 def peer_server_thread(conn: socket.socket, addr: tuple):
@@ -42,6 +46,40 @@ def peer_server_thread(conn: socket.socket, addr: tuple):
 
         # Save client connection and address
         TABLE[handshake.id] = (conn, addr)
+        # Propagate the update to the whole network
+        # TODO: Send propagation message to whole routing table entries
+
+        # Wait for incoming messages
+        while True:
+            try:
+                message = comm.receive_message(conn, Message)
+            except ValueError:
+                logger.error(f"Error receiving message from {handshake.id}")
+                break
+            # Check if the message is an exit message
+            if message.msg == "end":
+                logger.info(f"Client {handshake.id} requested to close the connection.")
+                del TABLE[handshake.id]
+                # Propagate the update to the whole network
+                # FIXME: Send propagation message to whole routing table entries
+                break
+            # Check if the message is intended for the server
+            if message.to == PEER_ID:
+                logger.info(f"Message from {message.fr}: {message.msg}")
+            else:
+                # Forward the message to the recipient
+                if message.to in TABLE:
+                    recipient_conn, _ = TABLE[message.to]
+                    comm.send_message(recipient_conn, message)
+                    logger.info(f"Forwarded message from {message.fr} to {message.to}")
+                else:
+                    logger.error(
+                        f"Recipient {message.to} not found in the routing table."
+                    )
+                    # Save the message in the buffer
+                    buffer.add_message(message.fr, message)
+                    # Propagate the update to the whole network
+                    # FIXME: implement this
 
 
 def peer_server(server_config: ServerAddress):
@@ -68,6 +106,8 @@ def peer_server(server_config: ServerAddress):
 
 
 def main(raw_args: list):
+    global PEER_ID
+
     logger.info("Parsing arguments...")
     # parse and validate arguments
     try:
@@ -78,6 +118,9 @@ def main(raw_args: list):
         for source, msg in e.fields:
             logger.error(f"  - {source}: {msg}")
         return
+
+    # Generate or use provided peer ID
+    PEER_ID = config["id"] if config["id"] is not None else protocol.generate_peer_id()
 
     # Start the server as a thread
     logger.debug("Creating peer server thread...")
@@ -97,15 +140,8 @@ def main(raw_args: list):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.connect((peer_address["ip"], peer_address["port"]))
 
-                # Generate or use provided ID
-                peer_id = (
-                    config["id"]
-                    if config["id"] is not None
-                    else protocol.generate_peer_id()
-                )
-
                 # Try to perform the handshake with the desired ID (or generate if not provided)
-                status, id = protocol.perform_handshake(s, peer_id)
+                status, id = protocol.perform_handshake(s, PEER_ID)
 
                 # if the handshake failed, retry the connection using the provided id
                 if not status:
@@ -116,7 +152,36 @@ def main(raw_args: list):
 
                 logger.info(f"[Client] Handshake completed. Final ID: {id}")
 
-                # Now, handle message exchange
+                # Send messages to the server
+                while True:
+                    # Ask the user
+                    try:
+                        data = input("Enter a message: ")
+                    except ValueError:
+                        data = "end"
+
+                    if EXIT:
+                        print("Connection closed by the server... Exiting")
+                        break
+                    elif data == "end":
+                        break
+                    elif data == "":
+                        continue  # Reprint the prompt if the user didn't enter anything
+
+                    # Ensure that the user has specified a recipient id
+                    parts = data.split(" ")
+                    content = " ".join(parts[1:])
+                    try:
+                        recipient_id = int(parts[0])
+                    except ValueError:
+                        print(
+                            "Invalid message. Please specify a recipient id before the message"
+                        )
+                        continue  # Skip the rest of the loop
+
+                    # Send text to user
+                    protocol.send_text(s, id, recipient_id, content)
+                    logger.info(f"[Client] Sent message to {recipient_id}")
 
         except ValueError as e:
             logger.error(f"Error: {e}")
