@@ -7,6 +7,10 @@ message Message {
   int64 to = 2;
   string msg = 3;
 }
+message MessageAck {
+  int64 id = 1;
+  bool error = 2;
+}
 
 // Handshake start / end
 message HandshakeStart {
