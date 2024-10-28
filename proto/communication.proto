@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package cs2;
+
+message Message {
+  int64 fr = 1;
+  int64 to = 2;
+  string msg = 3;
+}
+
+// Handshake start / end
+message HandshakeStart {
+  int64 id = 1;
+}
+message HandshakeAck {
+  int64 id = 1;
+  bool error = 2;
+}
+
+// Propagate join / leave
+message PropagateJoin {
+  int64 id = 1;
+}
+message PropagateLeave {
+  int64 id = 1;
+}
+
