@@ -1,8 +1,8 @@
-from gen.proto.communication_pb2 import HandshakeStart, HandshakeAck
+from gen.proto.communication_pb2 import HandshakeStart, HandshakeAck, Message
 from modules.communication import send_message, receive_message
 from modules.snowflake import derive_id
 from random import randint
-from typing import Callable
+import socket
 
 
 def generate_peer_id() -> int:
@@ -14,7 +14,7 @@ def generate_peer_id() -> int:
 
 
 def perform_handshake(
-    conn,
+    conn: socket.socket,
     chosen_id: int,
 ) -> tuple[bool, int]:
     print("Performing handshake...")
@@ -28,3 +28,13 @@ def perform_handshake(
     if not ack.error and ack.id == chosen_id:
         return True, chosen_id
     return False, ack.id
+
+
+def send_text(
+    conn: socket.socket,
+    from_id: int,
+    recipient_id: int,
+    message: str,
+):
+    msg = Message(fr=from_id, to=recipient_id, msg=message.strip())
+    send_message(conn, msg)
