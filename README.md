@@ -1,6 +1,6 @@
-# Peer-to-Peer Network Server Project
+# Unstructured Peer-to-Peer Network Server Project
 
-This project provides a peer-to-peer (P2P) network server where each peer functions as both a client and a server, facilitating decentralized communication across multiple nodes. Each peer is uniquely identified, allowing it to either join an existing network or create a new one if none is specified. The server manages peer connections, message exchange, connection lifecycle management, and duplicate connection prevention, making it suitable for decentralized applications.
+This project defines an unstructured peer-to-peer (P2P) network, facilitating decentralized communication across multiple nodes. Each peer is uniquely identified, allowing it to either join an existing network or create a new one if none is specified. The server manages peer connections, message exchange, connection lifecycle management, and duplicate connection prevention, making it suitable for decentralized applications.
 
 ## Table of Contents
 
