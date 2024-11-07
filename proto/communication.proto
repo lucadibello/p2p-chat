@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package cs2;
+
+// Enum to specify the type of PeerMessage
+enum PeerMessageType {
+  UNKNOWN = 0;
+  MESSAGE = 1;
+  ANNOUNCEMENT = 2;
+  HANDSHAKE_START = 3;
+  HANDSHAKE_RESPONSE = 4;
+}
+
+enum AnnouncementType {
+  JOIN = 0;
+  LEAVE = 1;
+}
+
+// Root message that includes a type field and content
+message PeerMessage {
+  PeerMessageType type = 1;
+
+  // The actual content of the message
+  oneof content {
+    Message message = 2;
+    PropagationMessage announcement = 3;
+    HandshakeStart handshakeStart = 4;
+    HandshakeResponse handshakeResponse = 5;
+  }
+}
+
+// Messages between clients
+message Message {
+  int64 fr = 1; // Renamed for clarity
+  int64 to = 2;
+  string msg = 3;
+}
+
+// Handshake start
+message HandshakeStart {
+  int64 id = 1;
+}
+
+// Handshake response back to the client
+message HandshakeResponse {
+  int64 id = 1;
+  bool error = 2;
+}
+
+// Propagation messages
+message PropagationMessage {
+  AnnouncementType type = 1;
+  oneof announcement {
+    Join join = 2;
+    Leave leave = 3;
+  }
+}
+
+// Join message to inform other clients about the new client
+message Join {
+  int64 id = 1;
+  int64 via_id = 2;
+}
+
+// Leave message to inform other clients about the client that left
+message Leave {
+  int64 id = 1;
+}
